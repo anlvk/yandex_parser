@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Основной контейнер Laravel приложения
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_app
+    restart: unless-stopped
+    working_dir: /var/www
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./project:/var/www
+    networks:
+      - laravel-network
+
+  # Веб-сервер Nginx
+  webserver:
+    image: nginx:alpine
+    container_name: laravel_web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./project:/var/www
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - app
+    networks:
+      - laravel-network
+
+  # База данных PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: laravel-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - laravel-network
+
+  # Постоянный обработчик фоновых задач (Воркер)
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel-queue-worker
+    restart: unless-stopped
+    tty: true
+    working_dir: /var/www
+    volumes:
+      - ./project:/var/www
+    networks:
+      - laravel-network
+    depends_on:
+      - app
+      - db
+    command: php artisan queue:work --queue=default --sleep=3 --tries=3
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  laravel-network:
+    driver: bridge
