@@ -66,24 +66,61 @@ const submitLink = async () => {
     successMessage.value = '';
 
     try {
+        console.log(form.url);
+        // 1. Делаем первый быстрый запрос (Мета + первые 50 отзывов)
         const response = await axios.post('/api/organization/import', {
             yandex_url: form.url
         });
         
-        successMessage.value = 'Ссылка успешно сохранена!';
+        const newOrg = response.data.data;
+        successMessage.value = 'Организация добавлена! Запущен фоновый сбор отзывов (до 600 шт)...';
         form.url = ''; 
         
+        // Сразу отображаем компанию и первые отзывы на экране
         await loadOrganizations();
-    } catch (error) {
-        if (error.response && error.response.status === 422) {
-            errorMessage.value = error.response.data.errors.yandex_url?.[0] || 'Неверный формат ссылки.';
-        } else {
-            errorMessage.value = error.response?.data?.message || 'Произошла ошибка при отправке запроса.';
+        selectOrganization(newOrg);
+        loading.value = false; // Кнопка СРАЗУ разблокируется, вечного ожидания нет!
+
+        // 2. ЦИКЛ ДОБОРA ОСТАВШИХСЯ ОТЗЫВОВ (Страницы со 2 по 12)
+        // Запускаем последовательные быстрые запросы с паузами в 1.5 секунды
+        for (let page = 2; page <= 12; page++) {
+            // Делаем небольшую паузу на фронтенде между запросами (маскировка под человека)
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            try {
+                const chunkResponse = await axios.post(`/api/organizations/${newOrg.id}/parse-chunk`, {
+                    page: page
+                });
+                
+                // Если Яндекс отдал 0 отзывов — значит лента закончилась раньше, прерываем цикл
+                if (chunkResponse.data.fetched === 0) {
+                    console.log('Все доступные отзывы успешно собраны.');
+                    break;
+                }
+                
+                // Бесшумно обновляем ленту отзывов на экране, чтобы пользователь видел, 
+                // как счетчик "Всего в базе" увеличивается в реальном времени!
+                if (selectedOrganization.value?.id === newOrg.id) {
+                    loadReviews(newOrg.id, reviewsData.value.current_page);
+                }
+            } catch (chunkError) {
+                console.error(`Ошибка при скачивании страницы ${page}:`, chunkError);
+                break; // Если поймали капчу на какой-то странице — останавливаем сбор
+            }
         }
-    } finally {
+
+        successMessage.value = 'Сбор всех 600 отзывов успешно завершен и сохранен в PostgreSQL!';
+
+    } catch (error) {
         loading.value = false;
+        if (error.response && error.response.status === 422) {
+            errorMessage.value = error.response.data.errors.yandex_url?. || 'Неверный формат ссылки.';
+        } else {
+            errorMessage.value = error.response?.data?.message || 'Произошла ошибка при импорте.';
+        }
     }
 };
+
 
 onMounted(() => {
     loadOrganizations();
@@ -160,7 +197,7 @@ onMounted(() => {
                     </div>
                 </div>
 
-                                <!-- БЛОК 3: Вывод отзывов с пагинацией по 15 штук -->
+                <!-- БЛОК 3: Вывод отзывов с пагинацией по 15 штук -->
                 <div v-if="selectedOrganization" class="overflow-hidden bg-white shadow-sm sm:rounded-lg p-6">
                     <div class="flex items-center justify-between mb-4 border-b pb-2">
                         <h3 class="text-lg font-medium text-gray-900">

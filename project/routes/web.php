@@ -31,4 +31,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/api/organizations', [OrganizationController::class, 'index']);
     Route::post('/api/organization/import', [OrganizationController::class, 'import']);
     Route::get('/api/organizations/{organization}/reviews', [OrganizationController::class, 'getReviews']);
+    Route::post('/api/organizations/{organization}/parse-chunk', [OrganizationController::class, 'parseChunk']);
 });
