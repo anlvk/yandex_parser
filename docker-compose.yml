@@ -47,6 +47,17 @@ services:
     networks:
       - laravel-network
 
+  adminer:
+    image: adminer:latest
+    container_name: laravel-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080" # Будет доступен на вашем ПК по порту 8081
+    networks:
+      - laravel-network
+    depends_on:
+      - db
+
   # Постоянный обработчик фоновых задач (Воркер)
   queue-worker:
     build:

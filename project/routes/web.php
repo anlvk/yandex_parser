@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -25,3 +26,9 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/api/organizations', [OrganizationController::class, 'index']);
+    Route::post('/api/organization/import', [OrganizationController::class, 'import']);
+    Route::get('/api/organizations/{organization}/reviews', [OrganizationController::class, 'getReviews']);
+});
