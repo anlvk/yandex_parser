@@ -1,58 +1,128 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Сервис импорта и агрегации отзывов из Яндекс.Карт
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Веб-приложение для автоматического сбора, кэширования, фоновой догрузки и постраничного отображения информации об организациях и их отзывах. Развернуто на базе стека **Laravel 11 (Sanctum SPA)**, **Inertia.js**, **Vue 3 (Composition API)**, **Tailwind CSS** и **PostgreSQL**.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🚀 Быстрый локальный запуск (Docker Compose)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Проект полностью контейнеризирован и готов к запуску в любой ОС с установленным Docker Desktop / WSL2.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
+### 1. Клонирование репозитория
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone <ссылка_на_ваш_репозиторий>
+cd <папка_проекта>
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. Подготовка конфигурации окружения
+Создайте файл `.env` в корневой директории проекта:
+```bash
+cp project/.env.example .env
+cp project/.env.example project/.env
+```
+*Для корректной работы Docker Compose снаружи и Laravel внутри контейнеров, параметры СУБД в обоих файлах должны совпадать (см. раздел переменных окружения).*
 
-## Contributing
+### 3. Сборка и запуск контейнеров
+```bash
+docker compose up -d --build
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 4. Инициализация приложения и базы данных
+Выполните поочередно команды для настройки зависимостей, генерации таблиц PostgreSQL и создания тестового пользователя:
+```bash
+# Установка PHP-пакетов
+docker compose exec app composer install
 
-## Code of Conduct
+# Генерация ключа безопасности
+docker compose exec app php artisan key:generate
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# Создание системных таблиц очередей и сессий
+docker compose exec app php artisan queue:table
+docker compose exec app php artisan session:table
 
-## Security Vulnerabilities
+# Накатывание миграций и запуск сидера пользователей
+docker compose exec app php artisan migrate:fresh --seed --force
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# Очистка конфигурационного кэша
+docker compose exec app php artisan config:clear
+```
 
-## License
+### 5. Сборка фронтенда (Vue 3)
+Скомпилируйте фронтенд-ресурсы в статические файлы:
+```bash
+# Установка Node-зависимостей на хост-машине (или внутри контейнера при наличии Node)
+cd project && npm install && npm run build
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### 6. Доступ к интерфейсам
+* **Основной сайт:** `http://localhost:8080/login`
+* **Панель управления БД Adminer:** `http://localhost:8081` (Система: *PostgreSQL*, Сервер: *db*, Логин/Пароль: *postgres*)
+* **Данные тестового аккаунта:** `someemail@gmail.com` / `password`
+
+---
+
+## ⚙️ Переменные окружения (.env)
+
+Пример оптимальной конфигурации для файла `.env` в корне и внутри папки `project/`:
+
+```env
+APP_NAME="Yandex Review Aggregator"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=http://localhost:8080
+
+# Подключение к СУБД внутри Docker-сети
+DB_CONNECTION=pgsql
+DB_HOST=db
+DB_PORT=5432
+DB_DATABASE=laravel
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+
+# Настройка безопасной SPA-авторизации Sanctum/Inertia
+SANCTUM_STATEFUL_DOMAINS=localhost:8080,127.0.0.1:8080,localhost:5173,127.0.0.1:5173
+SESSION_DOMAIN=localhost
+
+# Хранение сессий, кэша и фоновых задач в БД для разгрузки RAM
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+```
+
+---
+
+## 🛠️ Описание подхода к парсингу и обходу защиты Яндекса
+
+### 1. Стратегия кэширования и кэш-источник
+В соответствии с требованиями ТЗ, проект спроектирован по паттерну **«Бэкенд как единственный источник правды»**. 
+Приложение никогда не запрашивает внешние сервера Яндекс.Карт при обычном переключении страниц пользователем во Vue. Парсинг выполняется строго один раз при отправке ссылки. Все данные сохраняются в реляционные таблицы PostgreSQL. Фронтенд работает исключительно с локальной СУБД, что обеспечивает мгновенный отклик интерфейса (время ответа API менее 30 мс) и защищает сервер от банов за агрессивный трафик.
+
+### 2. Двухфазный асинхронный импорт (Разгрузка HTTP)
+Парсинг глубокой ленты отзывов (ориентир — до 600 штук) занимает значительное время из-за необходимости соблюдать задержки. Если выполнять весь цикл внутри одного HTTP-ответа, прокси-сервер Nginx оборвет соединение по таймауту (`502 Bad Gateway`). 
+Логика разделена на две фазы:
+* **Фаза 1 (Синхронная):** Контроллер вызывает `YandexMapsParserService->parseInitial()`. За 1–2 секунды скачиваются мета-данные организации (рейтинг, счетчики, адрес) и первые 50 отзывов. Laravel сохраняет их и мгновенно возвращает Vue статус `200 OK`. Анимация загрузки исчезает, пользователь сразу видит карточку компании и первые отзывы.
+* **Фаза 2 (Асинхронная):** Контроллер отправляет фоновую задачу `ParseRemainingReviewsJob::dispatch()`. Системный демон очередей (`queue-worker`) подхватывает задачу и в фоновом режиме методично скачивает оставшиеся ~550 отзывов (страницы с 2 по 12), не блокируя веб-интерфейс.
+
+### 3. Логика работы парсера (Имитация внутренних XHR)
+Вместо использования тяжелых, требовательных к оперативной памяти Headless-браузеров (Selenium/Puppeteer), которые моментально вызывают ошибку *Out of Memory* на серверах с 1 ГБ RAM, класс-обёртка `YandexMapsParserService` выполняет **прямой разбор внутренних защищенных JSON API-эндпоинтов мобильной версии Яндекс.Карт** (`orgpage/header` и `orgpage/reviews`). Это снижает потребление ресурсов до минимального уровня.
+
+### 4. Обход Anti-Bot систем
+Для предотвращения срабатывания триггеров защиты WAF Яндекса (выдача капчи, блокировка `403/429`) внедрен комплекс мер маскировки:
+* **Маскировка сессии:** Каждый исходящий запрос снабжается заголовками реального мобильного устройства (Safari/iPhone), параметрами доверенной локали (`ru_RU`) и обязательным заголовком `Referer: https://yandex.ru`.
+* **Throttling (Дросселирование):** Внутри циклов пагинации страниц Яндекса зашит рандомизированный интервал ожидания `sleep(rand(1, 2))`, имитирующий скорость чтения страниц реальным пользователем.
+* **Локальный суверенитет IP:** При деплое на белорусские хостинги (Hoster.by, ActiveCloud), IP-адрес сервера распознается Яндексом как доверенный резидентный (.by), что снижает базовый коэффициент подозрительности Anti-Bot фильтров в сравнении с зарубежными дата-центрами (AWS, Hetzner).
+
+---
+
+## 📈 Постраничная навигация (Фронтенд)
+
+* На стороне бэкенда реализован тонкий API-метод с использованием Eloquent пагинатора `paginate(15)`.
+* Во Vue 3 (Composition API) через Axios настроен асинхронный перехват страниц. При клике на кнопки навигации «Назад» / «Вперед» фронтенд подкачивает строго очередные 15 отзывов из кэша PostgreSQL, обеспечивая плавное переключение **без перезагрузки страницы**, мерцания экрана или потери состояния интерфейса.
+
+---
+
+## 📝 Комментарий автора: что можно улучшить (Имея больше времени)
+
+1. **Интеграция пула ротируемых прокси (Proxy Rotator):** Для промышленного сбора тысяч организаций одной маскировки User-Agent станет недостаточно. Я бы внедрил интеграцию с API прокси-менеджеров (например, Webshare или BrightData) для автоматической смены IP на каждый фоновый запрос воркера.
+2. **Веб-сокеты (Laravel Reverb / Echo):** Так как сбор оставшихся 550 отзывов происходит в фоновой очереди, пользователю сейчас приходится вручную обновлять страницу, чтобы увидеть, как счетчик отзывов вырос. Я бы добавил отправку WebSocket-события с бэкенда во Vue в момент, когда `ParseRemainingReviewsJob` завершает свою работу, чтобы интерфейс перерисовывался «на лету» без участия пользователя.
+3. **Интерфейс фильтрации ленты:** Добавил бы на фронтенд удобные UI-компоненты для фильтрации отзывов по количеству звезд (например, отображать только негативные отзывы с 1-2 звездами для работы отдела репутации) и текстовый поиск.
